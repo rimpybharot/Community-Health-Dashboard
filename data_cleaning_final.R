@@ -11,15 +11,20 @@ library(googleVis)
 library(leaflet)
 library(ggthemes)
 library(RColorBrewer)
+library(magrittr)
+library(tableone)
+library(corrplot)
+library(maptools)
 
-zip_code <- read.table("/Users/jasonchiu0803/Desktop/data_bootcamp/project_1/data/zip_tract.txt", 
+
+zip_code <- read.table("zip-tract.txt", 
                        sep=",",header = T)
 zip_code <- zip_code %>% 
   mutate(zip_code = str_pad(as.character(ZCTA5), 5, pad = "0"),
          tractID = str_pad(as.character(GEOID), 11, pad = "0"))
 zip_tract <- zip_code %>% dplyr::select(zip_code,tractID)
 zip_tract
-tract_data <- read.csv("/Users/jasonchiu0803/Desktop/data_bootcamp/project_1/data/tract_level.csv",
+tract_data <- read.csv("tract_level.csv",
                        stringsAsFactors = F)
 tract_data <- tract_data %>% mutate(tractID = str_pad(as.character(TractFIPS), 11, pad = "0")) %>%
   select(StateAbbr, PlaceName, tractID)
@@ -30,7 +35,7 @@ View(checking)
 unique_zip <- left_join(unique_zip, checking, by = ("zip_code"="zip_code"))
 place_zip <- unique_zip %>% filter(count == 1)
 
-hosp_info <- read.csv("/Users/jasonchiu0803/Desktop/data_bootcamp/project_1/data/Hospital_General_Information.csv",
+hosp_info <- read.csv("Hospital_General_Information.csv",
                       stringsAsFactors = F)
 hosp_info <- hosp_info %>% mutate(ZIP.Code = str_pad(as.character(ZIP.Code), 5, pad = "0"))
 hosp_info <- left_join(hosp_info, place_zip, by = c("ZIP.Code"="zip_code"))
@@ -43,7 +48,7 @@ hosp_info <- hosp_info %>% mutate(City = tolower(City)) %>%
 hosp_info1 <- hosp_info %>% mutate(city_matched = ifelse(is.na(count),City, Place)) %>% 
   mutate(city_matched = tolower(city_matched))
 
-city_500 <- read.csv("/Users/jasonchiu0803/Desktop/data_bootcamp/project_1/data/city_level.csv",
+city_500 <- read.csv("city_level.csv",
                      stringsAsFactors = F)
 city_selection <- city_500 %>% 
   mutate(city_lower = tolower(PlaceName)) %>%
@@ -117,7 +122,7 @@ summary_city1 <- summary_city1 %>% select(-Geolocation)
 
 exclude <- summary_city1 %>% filter(!(is.na(mean_rating))) %>% filter(State != "AK", State != "HI")
 
-write.csv(exclude, "/Users/jasonchiu0803/Desktop/data_bootcamp/project_1/new_shiny_dashboard/exclude.csv",row.names= FALSE)
+write.csv(exclude, "exclude.csv",row.names= FALSE)
 
 for (i in 9:32) {
   print(i)
@@ -178,8 +183,9 @@ graph_box("HIGHCHOL_city")
 graph_box("MHLTH_city")
 graph_box("STROKE_city")
 
-local_level <- read.csv("/Users/jasonchiu0803/Desktop/data_bootcamp/project_1/data/local_data.csv",
+local_level <- read.csv("local_data.csv",
                         stringsAsFactors = FALSE)
+
 national <- local_level %>% 
   filter(StateAbbr == "US", DataValueTypeID =="AgeAdjPrv") %>%
   select(MeasureId, StateAbbr, Data_Value) %>%
@@ -194,7 +200,7 @@ national <- local_level %>%
 
 
 national
-write.csv(national, "/Users/jasonchiu0803/Desktop/data_bootcamp/project_1/new_shiny_dashboard/national.csv",row.names= FALSE)
+write.csv(national, "national.csv",row.names= FALSE)
 
 final_corr <- exclude[,9:32]
 M <- cor(final_corr, use = "pairwise.complete.obs",method="pearson")
@@ -212,8 +218,8 @@ address_book <- city_hosp %>% select(Hospital.Name, Address, PlaceName, State, Z
   unite(f_address, Address, PlaceName, State, ZIP.Code, sep = " ")
 View(city_hosp)
 
-for (i in 1:1425) {
-  if (is.na(address_book[i,"long"]) == TRUE) {
+for (i in 1:1461) {
+  if (is.na(address_book[i,"f_address"]) == TRUE) {
     a <- ggmap::geocode(address_book[i,"f_address"])
     address_book[i,"long"] <- a$lon
     address_book[i,"lati"] <- a$lat
@@ -284,15 +290,15 @@ city_hosp[1086,"lati.x"] <- 39.94891
 city_hosp[978,"long.x"] <- -83.16561
 city_hosp[978,"lati.x"] <- 40.10208
 city_hosp[city_hosp$label == "Columbus, OH",]
-write.csv(city_hosp,"/Users/jasonchiu0803/Desktop/data_bootcamp/project_1/new_shiny_dashboard/city_hosp.csv",row.names= FALSE)
+write.csv(city_hosp,"city_hosp.csv",row.names= FALSE)
 
 
-city_specific <- city_hosp %>% filter(label == "Los Angeles, CA")
+city_specific <- city_hosp %>% filter(label == "Alameda, CA")
 ggplot(data = city_specific, aes(x = Hospital.overall.rating)) + geom_bar() + 
   ggtitle("Hospital Overall Rating") + theme_few() + ylab("Count") + xlab("Rating") +
   scale_x_discrete(drop=FALSE)
 
-tract_level <- read.csv("/Users/jasonchiu0803/Desktop/data_bootcamp/project_1/data/tract_level.csv",
+tract_level <- read.csv("tract_level.csv",
                         stringsAsFactors = F)
 tract_level <- tract_level %>% 
   select(StateAbbr, PlaceName, TractFIPS, population2010, Geolocation, ends_with("_CrudePrev")) %>%
@@ -310,11 +316,16 @@ names(tract_level)
 place_tract <- left_join(state_list, tract_level, by = c("PlaceName"="PlaceName","State" = "StateAbbr"))
 place_tract <- place_tract %>% unite(label, PlaceName, State, sep = ", ", remove = FALSE)
 
+
+print(getwd())
+shape1 <- readShapePoly("abc.shp")
+assign("data_name", readOGR(dsn = "/home/rimpybharot/Documents/cmpe297/Project/censustractfolder/gz_2010_01_140_00_500k", layer = "gz_2010_01_140_00_500k"))
+
 filepath = c()
 layername = c()
 for (i in c(1,4:6, 8:13, 16:42, 44:51, 53:56)){
   str_num = str_pad(as.character(i), 2, pad = "0")
-  filedsn = paste0("/Users/jasonchiu0803/Desktop/data_bootcamp/project_1/censustract/gz_2010_",str_num,"_140_00_500k")
+  filedsn = paste0("/home/rimpybharot/Documents/cmpe297/Project/censustractfolder/gz_2010_",str_num,"_140_00_500k")
   filepath = c(filepath,filedsn)
   layer1 = paste0("gz_2010_",str_num,"_140_00_500k")
   layername = c(layername, layer1)
@@ -336,6 +347,9 @@ for (i in (1:length(dataframe_list))) {
   a <- paste0(dataframe_list[i], "<-","fortify(",dataframe_list[i],", region = 'GEO_ID')")
   command_line <- c(command_line, a)
 }
+
+#if (!require(gpclib)) install.packages("gpclib", type="source")
+#gpclibPermit()
 
 censustract1<-fortify(censustract1, region = 'GEO_ID')
 censustract2<-fortify(censustract2, region = 'GEO_ID')
@@ -401,7 +415,7 @@ data_list <- list(censustract1, censustract2, censustract3, censustract4, census
 
 total <- do.call("rbind",data_list)
 
-write.csv(total,"/Users/jasonchiu0803/Desktop/data_bootcamp/project_1/data/total.csv",row.names= FALSE)
+write.csv(total,"total.csv",row.names= FALSE)
 
 place_tract <- place_tract %>% rename(long_ori = long,
                                       lati_ori = lati)
@@ -412,22 +426,23 @@ top_30_city <- unique(top_30_list$label)
 only_30 <- left_join(top_30_list, place_tract, by = c("label" = "label"))
 View(only_30)
 
-total <- read.csv("/Users/jasonchiu0803/Desktop/data_bootcamp/project_1/data/total.csv", stringsAsFactors = FALSE)
+total <- read.csv("total.csv", stringsAsFactors = FALSE)
 
 plotdata <- left_join(only_30, total, by = c("TractFIPS" = "id"))
 
 for (i in (8:35)){
-  plotdata[i] = plotdata[i]/100
+  pdata = as.numeric(unlist(plotdata[i]))
+  plotdata[i] = pdata/100
 }
 
-plotdata <- plotdata %>% mutate(hcoverage_CrudePrev = 1 - ACCESS2_CrudePrev) 
-write.csv(plotdata,"/Users/jasonchiu0803/Desktop/data_bootcamp/project_1/new_shiny_dashboard/plotdata.csv",row.names= FALSE)
+plotdata <- plotdata %>% mutate(hcoverage_CrudePrev = 1 - as.numeric(ACCESS2_CrudePrev))
+write.csv(plotdata,"plotdata.csv",row.names= FALSE)
 
 library(dplyr)
 library(ggplot2)
 library(leaflet)
 
-plotdata <- read.csv("/Users/jasonchiu0803/Desktop/data_bootcamp/project_1/new_shiny_dashboard/plotdata.csv", stringsAsFactors = FALSE)
+plotdata <- read.csv("plotdata.csv", stringsAsFactors = FALSE)
 
 plotdata1 <- plotdata %>% filter(label == "Philadelphia, PA")
 city_hosp1 <- city_hosp %>% filter(label == "Philadelphia, PA")
@@ -446,12 +461,14 @@ p <- ggplot() +
 p
 
 
+
 city_perf <- exclude %>%
   select(label, ends_with("_city")) %>%
-  gather(varname, Data_value, 3:27) %>%
+  gather(varname, Data_value, 3:27)%>%
   filter(label == "New York, NY") %>%
   select(varname, Data_value) %>% 
   filter(varname != "ACCESS2_city")
+
 View(city_perf)
 total_perf <- rbind(city_perf, national) %>% separate(varname, into = c("mea", "level"))
 national
